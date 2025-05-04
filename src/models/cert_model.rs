@@ -1,5 +1,5 @@
 use crate::certificate::auth_chain;
-use ethabi::ethereum_types::{Address, U256};
+use ethabi::ethereum_types::{Address, H256, U256};
 use ethers::contract::EthEvent;
 use ethers::types::transaction::eip712::{EIP712Domain, Eip712, Eip712Error};
 use ethers::utils::keccak256;
@@ -48,7 +48,7 @@ impl Eip712 for Certificate {
             version: Some("1".to_string()),
             chain_id: Some(U256::from(84532).into()),
             verifying_contract: Some(
-                "0xFB8551d414E2ECC22d0616CEB22a36002382bE01"
+                "0xC14CDcDb51EF45111dd2024AB1c003F49144928f"
                     .parse()
                     .unwrap(),
             ),
@@ -140,10 +140,43 @@ impl From<Certificate> for auth_chain::Certificate {
         }
     }
 }
+
+#[derive(Clone, Serialize, Deserialize, Debug, ToSchema)]
+pub struct ItemInput {
+    // #[schema(value_type = String, format = Binary)]
+    pub item_id: String
+}
 //=======================
 
 #[derive(Debug, Clone, EthEvent)]
-#[ethevent(name = "ItemCreated", abi = "ItemCreated(bytes32)")]
+#[ethevent(name = "ItemCreated", abi = "ItemCreated(string,bytes32,address)")]
+#[derive(Default)]
 pub struct ItemCreatedEvent {
-    pub struct_hash: [u8; 32], // or H256
+    pub name: String,
+    
+    #[ethevent(indexed)]
+    pub unique_id: H256,
+    
+    #[ethevent(indexed)]
+    pub owner: Address,
+}
+
+impl ItemCreatedEvent {
+    pub fn init() -> Self {
+        Self {
+            name: String::new(),
+            unique_id: H256::zero(),
+            owner: Address::zero(),
+        }
+    }
+    pub fn new(name: String, unique_id: H256, owner: Address) -> Self {
+        Self { name, unique_id, owner }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ItemEvent {
+    pub name: String,
+    pub unique_id: H256,
+    pub owner: Address,
 }

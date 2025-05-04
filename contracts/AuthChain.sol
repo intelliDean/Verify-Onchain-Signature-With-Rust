@@ -34,8 +34,9 @@ contract AuthChain is EIP712 {
 
     error InvalidSignature(address signer, bool result);
 
-    mapping(bytes32 => Item) public items;
-    event ItemCreated(bytes32 structHash);
+    mapping(string id => Item) public items;
+
+    event ItemCreated(string name, bytes32 indexed uniqueId, address indexed owner);
     event DebugHash(bytes32 structHash, bytes32 digest, address signer);
 
     constructor(address _owner) EIP712(SIGNING_DOMAIN, SIGNATURE_VERSION) {
@@ -49,18 +50,19 @@ contract AuthChain is EIP712 {
             revert InvalidSignature(certificate.owner, is_valid);
         }
 
-        Item storage item = items[structHash];
+        Item storage item = items[certificate.uniqueId];
+
         item.name = certificate.name;
         item.serial = certificate.serial;
         item.uniqueId = structHash;
         item.owner = certificate.owner;
         item.date = certificate.date;
 
-        emit ItemCreated(structHash);
+        emit ItemCreated(item.name, item.uniqueId, item.owner);
     }
 
-    function getItem(bytes32 structHash) external view returns (Item memory) {
-        return items[structHash];
+    function getItem(string memory itemId) external view returns (Item memory) {
+        return items[itemId];
     }
 
     function verifyAssetSignature(Certificate memory certificate, bytes memory signature)

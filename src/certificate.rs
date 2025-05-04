@@ -1,23 +1,23 @@
-use crate::models::cert_model::{ Certificate, CertificateDTO};
+use crate::models::cert_model::{Certificate, CertificateDTO, ItemCreatedEvent, ItemEvent};
 use crate::utility::{to_bytes, AppState};
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::Json;
+use ethers::utils::keccak256;
 use ethers::{
     abi::RawLog,
-    contract::{abigen, EthEvent},
+    contract::{abigen, EthEvent, EthLogDecode},
     prelude::*,
     signers::Signer,
     types::Signature,
 };
-use ethers::utils::keccak256;
 use sha2::Digest;
 
 // abi path
 abigen!(
     AuthChain,
     "./artifacts/contracts/AuthChain.sol/AuthChain.json",
-     event_derives(serde::Deserialize, serde::Serialize)
+    event_derives(serde::Deserialize, serde::Serialize)
 );
 
 #[utoipa::path(
@@ -32,9 +32,8 @@ abigen!(
 )]
 pub async fn create_item(
     State(state): State<AppState>,
-    Json(cert): Json<CertificateDTO>
+    Json(cert): Json<CertificateDTO>,
 ) -> anyhow::Result<Json<String>, axum::http::StatusCode> {
-
     let certificate: Certificate = cert
         .clone()
         .try_into()
@@ -46,7 +45,7 @@ pub async fn create_item(
         .eth_client
         .signer()
         .sign_typed_data(&certificate)
-        . await
+        .await
         .map_err(|e| {
             eprintln!("Signature error: {:?}", e);
             StatusCode::INTERNAL_SERVER_ERROR
@@ -59,131 +58,83 @@ pub async fn create_item(
     let sig_bytes = to_bytes(signature);
 
     // Call create_item
-    let contract =
-        AuthChain::new(state.auth_chain, state.eth_client.clone());
+    let contract = AuthChain::new(state.auth_chain, state.eth_client.clone());
 
-   contract
-        .create_item(contract_cert.clone(), sig_bytes)
+    let receipt = contract
+        .create_item(contract_cert, sig_bytes)
         .send()
         .await
         .map_err(|e| {
             eprintln!("Transaction send error: {:?}", e);
             StatusCode::INTERNAL_SERVER_ERROR
-        })?;
+        })?
+        .await
+        .map_err(|e| {
+            eprintln!("Transaction confirmation error: {:?}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?
+        .ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
 
-
-
-
-
-
-
-
-
-   //  let contract_cert: auth_chain::Certificate = certificate.into();
-   //
-   //  let contract = AuthChain::new(state.auth_chain, state.eth_client.clone());
-   //
-   //  let sig_bytes = to_bytes(signature);
-   //
-   // contract
-   //      .create_item(contract_cert, sig_bytes)
-   //      .send()
-   //      .await
-   //      .map_err(|e| {
-   //          eprintln!("Transaction send error: {:?}", e);
-   //          StatusCode::INTERNAL_SERVER_ERROR
-   //      })?;
-
-    // let receipt = contract
-    //     .create_item(contract_cert, sig_bytes)
-    //     .send()
-    //     .await
-    //     .map_err(|e| {
-    //         eprintln!("Transaction send error: {:?}", e);
-    //         StatusCode::INTERNAL_SERVER_ERROR
-    //     })?
-    //     .await
-    //     .map_err(|e| {
-    //         eprintln!("Transaction confirmation error: {:?}", e);
-    //         StatusCode::INTERNAL_SERVER_ERROR
-    //     })?
-    //     .ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
-    // // let events = contract
-    //     .item_created_filter()
-    //     .from_block(receipt.block_number.unwrap())
-    //     .query()
-    //     .await.unwrap();
-    //
-    // for event in events {
-    //     println!("✅ ItemCreated: {:?}", event.struct_hash);
-    // }
-
-//ok
-    // let receipt = contract
-    //     .create_item(contract_cert, sig_bytes)
-    //     .send()
-    //     .await
-    //     .map_err(|e| {
-    //         eprintln!("Transaction send error: {:?}", e);
-    //         StatusCode::INTERNAL_SERVER_ERROR
-    //     })?
-    //     .await
-    //     .map_err(|e| {
-    //         eprintln!("Transaction confirmation error: {:?}", e);
-    //         StatusCode::INTERNAL_SERVER_ERROR
-    //     })?
-    //     .ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
-    //
-    // if receipt.status != Some(1.into()) {
-    //     return Err(StatusCode::BAD_REQUEST);
-    // }
-    //
-    // let events = contract
-    //     .item_created_filter()
-    //     .from_block(receipt.block_number.unwrap())
-    //     .to_block(receipt.block_number.unwrap())
-    //     .query()
-    //     .await.unwrap();
-    //
-    // for event in events {
-    //     println!("✅ ItemCreated: {:?}", event.struct_hash);
-    // }
-
-    // let receipt = contract
-    //     .create_item(contract_cert, sig_bytes)
-    //     .send()
-    //     .await
-    //     .map_err(|e| {
-    //         eprintln!("Transaction send error: {:?}", e);
-    //         StatusCode::INTERNAL_SERVER_ERROR
-    //     })?
-    //     .await
-    //     .map_err(|e| {
-    //         eprintln!("Transaction confirmation error: {:?}", e);
-    //         StatusCode::INTERNAL_SERVER_ERROR
-    //     })?
-    //     .ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
-    //
-    // if receipt.status != Some(1.into()) {
-    //     return Err(StatusCode::BAD_REQUEST);
-    // }
+    if receipt.status != Some(1.into()) {
+        return Err(StatusCode::BAD_REQUEST);
+    }
     // let mut cert_hash = H256::zero();
     // // Listen for CertificateRegistered event
     // for log in receipt.logs {
     //     // Check if the log is for CertificateRegistered (topic[0] is event signature)
-    //     let event_signature = H256::from(keccak256("ItemCreated(bytes32)"));
+    //     let event_signature = H256::from(keccak256("ItemCreated(string,bytes32,address)"));
     //     if log.topics[0] == event_signature {
     //         // Decode the event (first topic is event signature, data is certHash)
-    //          cert_hash = H256::from_slice(&log.data);
-    //         println!("ItemCreated event detected! certHash: {:?}", cert_hash.clone());
+    //         cert_hash = H256::from_slice(&log.data);
+    //         println!(
+    //             "ItemCreated event detected! certHash: {:?}",
+    //             cert_hash.clone()
+    //         );
+    //     }
+    // }
+
+    let event_signature = H256::from(keccak256("ItemCreated(string,bytes32,address)"));
+
+
+
+    // for log in receipt.logs.iter() {
+    //     if log.topics.len() == 4 && log.topics[0] == event_signature {
+    //          name_hash = log.topics[1]; // You won't recover the original string, only the hash
+    //          unique_id = H256::from(log.topics[2]); // bytes32
+    //          owner = Address::from_slice(&log.topics[3].as_bytes()[12..]); // address is last 20 bytes
+    //
+    //         println!("📦 ItemCreated event:");
+    //         println!("    name hash: {:?}", name_hash);
+    //         println!("    unique_id: {:?}", unique_id);
+    //         println!("    owner: {:?}", owner);
     //     }
     // }
 
 
-    Ok(Json(format!("Item created successfully: {:?}", cert.unique_id)))
+    let mut event_res = ItemCreatedEvent::init();
+
+    for log in receipt.logs.iter() {
+        let raw_log = RawLog {
+            topics: log.topics.clone(),
+            data: log.data.clone().to_vec(),
+        };
+
+        if let Ok(event) = <ItemCreatedEvent as EthEvent>::decode_log(&raw_log) {
+            // name = event.name.clone();
+            // unique_id = event.unique_id;
+            // owner = event.owner;
+
+           event_res = ItemCreatedEvent::new(event.name.clone(), event.unique_id, event.owner);
+
+            println!("📦 ItemCreated:");
+            println!("    name: {}", event.name);
+            println!("    unique_id: {:?}", event.unique_id);
+            println!("    owner: {:?}", event.owner);
+        }
+    }
+
+    Ok(Json(format!("Event: {:?}", event_res)))
 }
-
-
 
 #[utoipa::path(
     get,
@@ -195,17 +146,12 @@ pub async fn create_item(
 pub async fn get_owner(
     State(state): State<AppState>,
 ) -> anyhow::Result<Json<Address>, axum::http::StatusCode> {
-
     let contract = AuthChain::new(state.auth_chain, state.eth_client.clone());
 
-     let owner = contract
-        .get_owner()
-        .call()
-        .await
-        .map_err(|e| {
-            eprintln!("Transaction send error: {:?}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
+    let owner = contract.get_owner().call().await.map_err(|e| {
+        eprintln!("Transaction send error: {:?}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
 
     Ok(Json(owner))
 
@@ -220,8 +166,22 @@ pub async fn get_owner(
     )
 )]
 pub async fn get_item(
-    Json(itemId): Json<String>, //this is the struckHash
-) {
+    State(state): State<AppState>,
+    Json(item_input): Json<String>, //this is the struckHash
+) -> anyhow::Result<Json<auth_chain::Item>, axum::http::StatusCode> {
 
+    let contract = AuthChain::new(state.auth_chain, state.eth_client.clone());
 
+    // let item_id = item_input;
+
+    let item = contract
+        .get_item(item_input)
+        .call()
+        .await
+        .map_err(|e| {
+            eprintln!("Transaction send error: {:?}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    Ok(Json(item))
 }

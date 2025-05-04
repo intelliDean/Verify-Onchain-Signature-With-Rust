@@ -1,9 +1,12 @@
-use crate::models::sig_model::AssetDto;
-use crate::signature::{__path_signature, signature};
-use crate::signature_verifier::{
-    __path_check_status, __path_verify_signature, check_status, verify_signature,
-};
+use crate::models::sig_model::{AssetDto};
 use crate::utility::AppState;
+use crate::signature::{signature, __path_signature};
+use crate::signature_verifier::{
+    __path_check_status,
+    __path_verify_signature,
+    check_status,
+    verify_signature,
+};
 
 use axum::{routing::get, routing::post, Router};
 
@@ -14,9 +17,7 @@ use utoipa_swagger_ui::SwaggerUi;
 use anyhow::Result;
 use dotenv::dotenv;
 // use ethers::prelude::*;
-use crate::certificate::{
-    __path_create_item, __path_get_item, __path_get_owner, create_item, get_item, get_owner,
-};
+use crate::certificate::{__path_create_item, __path_get_item, __path_get_owner, create_item, get_item, get_owner};
 use ethers::{
     middleware::SignerMiddleware,
     prelude::*,
@@ -26,17 +27,11 @@ use ethers::{
 };
 use std::{env, sync::Arc, time::Duration};
 
+
 // Swagger/OpenAPI configuration
 #[derive(OpenApi)]
 #[openapi(
-    paths(
-        verify_signature,
-        check_status,
-        signature,
-        create_item,
-        get_item,
-        get_owner
-    ),
+    paths(verify_signature, check_status, signature, create_item, get_item, get_owner),
     components(schemas(AssetDto))
 )]
 struct ApiDoc;
