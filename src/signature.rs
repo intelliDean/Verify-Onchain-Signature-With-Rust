@@ -6,7 +6,7 @@ use axum::extract::State;
 use axum::Json;
 use ethers::types::Signature;
 use tiny_keccak::{Hasher, Keccak};
-use crate::models::{AppState, AssetDto};
+use crate::models::sig_model::AssetDto;
 
 // Handler for POST /verify
 #[utoipa::path(

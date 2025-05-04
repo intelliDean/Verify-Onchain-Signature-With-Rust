@@ -1,13 +1,13 @@
-use crate::models::{AppState, Asset, AssetDto};
-use crate::utility::to_bytes;
+use crate::models::sig_model::{Asset, AssetDto};
+use crate::utility::{to_bytes, AppState};
 
 use axum::extract::{Json, State};
 
 use anyhow::Result;
 use ethers::{
     contract::abigen,
-    signers::Signer
-    ,
+    signers::Signer,
+    types::Signature,
 };
 
 
@@ -41,10 +41,10 @@ pub async fn verify_signature(
 
     asset.owner = state.wallet_address; //backend wallet address
 
-    let contract = SignatureVerifier::new(state.contract_address, state.eth_client.clone());
+    let contract = SignatureVerifier::new(state.signature_verifier, state.eth_client.clone());
 
     // accessing the wallet from SignerMiddleware
-    let signature = state
+    let signature: Signature = state
         .eth_client
         .signer()
         .sign_typed_data(&asset)
@@ -78,5 +78,5 @@ pub async fn verify_signature(
     )
 )]
 pub async fn check_status(State(state): State<AppState>) -> Json<String> {
-    Json(format!("Contract at {:?}", state.contract_address))
+    Json(format!("Contract at {:?}", state.signature_verifier))
 }

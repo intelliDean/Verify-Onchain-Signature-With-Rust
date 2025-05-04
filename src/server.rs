@@ -1,8 +1,9 @@
-use crate::signature::__path_signature;
-use crate::signature_verifier::__path_check_status;
-use crate::signature_verifier::{__path_verify_signature, check_status, verify_signature};
-use crate::signature::signature;
-use crate::models::{AppState, AssetDto};
+use crate::models::sig_model::AssetDto;
+use crate::signature::{__path_signature, signature};
+use crate::signature_verifier::{
+    __path_check_status, __path_verify_signature, check_status, verify_signature,
+};
+use crate::utility::AppState;
 
 use axum::{routing::get, routing::post, Router};
 
@@ -13,20 +14,29 @@ use utoipa_swagger_ui::SwaggerUi;
 use anyhow::Result;
 use dotenv::dotenv;
 // use ethers::prelude::*;
+use crate::certificate::{
+    __path_create_item, __path_get_item, __path_get_owner, create_item, get_item, get_owner,
+};
 use ethers::{
     middleware::SignerMiddleware,
+    prelude::*,
     providers::{Http, Provider},
     signers::{LocalWallet, Signer},
     types::Address,
-    prelude::*,
 };
 use std::{env, sync::Arc, time::Duration};
-
 
 // Swagger/OpenAPI configuration
 #[derive(OpenApi)]
 #[openapi(
-    paths(verify_signature, check_status, signature), 
+    paths(
+        verify_signature,
+        check_status,
+        signature,
+        create_item,
+        get_item,
+        get_owner
+    ),
     components(schemas(AssetDto))
 )]
 struct ApiDoc;
@@ -36,10 +46,16 @@ pub async fn server() -> Result<()> {
     // Load environment variables
     dotenv().ok();
 
+    //when sharing the .env file
+    // dotenv::from_path("../.env").ok();
+
     // Initialize Ethereum client
     let rpc_url = env::var("BASE_URL")?;
     let private_key = env::var("PRIVATE_KEY")?;
-    let contract_address: Address = env::var("CONTRACT_ADDRESS")?
+    let signature_verifier: Address = env::var("SIGNATURE_VERIFIER_CONTRACT")?
+        .parse()
+        .map_err(|_| anyhow::anyhow!("Invalid contract address"))?;
+    let auth_chain: Address = env::var("AUTH_CHAIN_CONTRACT")?
         .parse()
         .map_err(|_| anyhow::anyhow!("Invalid contract address"))?;
 
@@ -51,7 +67,8 @@ pub async fn server() -> Result<()> {
     // Initialize app state
     let state = AppState {
         eth_client,
-        contract_address,
+        signature_verifier,
+        auth_chain,
         wallet_address: wallet.address(), //will remove after test
     };
 
@@ -60,6 +77,9 @@ pub async fn server() -> Result<()> {
         .route("/verify", post(verify_signature))
         .route("/verify/status", get(check_status))
         .route("/signature", post(signature))
+        .route("/create_item", post(create_item))
+        .route("/get_item", get(get_item))
+        .route("/get_owner", get(get_owner))
         .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi()))
         .with_state(state)
         .layer(CorsLayer::permissive()); // Optional: Enable CORS

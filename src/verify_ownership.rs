@@ -17,7 +17,7 @@ use sha3::Digest;
 use std::{env, sync::Arc, time::Duration};
 use axum::Json;
 use tiny_keccak::Hasher;
-use crate::models::AssetDto;
+use crate::models::sig_model::AssetDto;
 
 // Generate contract bindings from ABI
 abigen!(
