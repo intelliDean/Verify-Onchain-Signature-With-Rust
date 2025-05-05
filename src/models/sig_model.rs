@@ -55,3 +55,9 @@ impl From<Asset> for signature_verifier::Asset {
     }
 }
 
+#[derive(Clone, Serialize, Deserialize, Debug, ToSchema)]
+pub struct OwnerAddress {
+    #[schema(value_type = String, format = Binary)]
+    pub owner: Address, // Address as hex string
+}
+

@@ -5,6 +5,7 @@ use ethers::types::transaction::eip712::{EIP712Domain, Eip712, Eip712Error};
 use ethers::utils::keccak256;
 use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
+use ethers::utils::hex::ToHexExt;
 use utoipa::ToSchema;
 
 
@@ -180,3 +181,28 @@ pub struct ItemEvent {
     pub unique_id: H256,
     pub owner: Address,
 }
+
+
+#[derive(Clone, Serialize, Deserialize, Debug, ToSchema)]
+pub struct Item {
+    pub name: String,
+    pub serial: String,
+    pub date: String,
+    pub unique_id: String,
+    pub owner: String, // Address as hex string
+}
+
+
+impl From<auth_chain::Item> for Item {
+    fn from(item: auth_chain::Item) -> Self {
+        Self {
+            name: item.name,
+            unique_id: item.unique_id.encode_hex_with_prefix(),
+            serial: item.serial,
+            date: item.date.to_string(),
+            owner: item.owner
+                .encode_hex_with_prefix(),
+        }
+    }
+}
+

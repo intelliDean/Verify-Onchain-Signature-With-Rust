@@ -1,4 +1,5 @@
 use crate::models::sig_model::{AssetDto};
+use crate::models::cert_model::{Item};
 use crate::utility::AppState;
 use crate::signature::{signature, __path_signature};
 use crate::signature_verifier::{
@@ -26,15 +27,19 @@ use ethers::{
     types::Address,
 };
 use std::{env, sync::Arc, time::Duration};
+use crate::swagger_config::ApiDoc;
 
 
-// Swagger/OpenAPI configuration
-#[derive(OpenApi)]
-#[openapi(
-    paths(verify_signature, check_status, signature, create_item, get_item, get_owner),
-    components(schemas(AssetDto))
-)]
-struct ApiDoc;
+// // Swagger/OpenAPI configuration
+// #[derive(utoipa::OpenApi)]
+// #[openapi(
+//     paths(verify_signature, check_status, signature, create_item, get_item, get_owner),
+//     components(
+//         schemas(AssetDto, Item),
+//         // responses(Item)
+//     ),
+// )]
+// struct ApiDoc;
 
 pub async fn server() -> Result<()> {
     eprintln!("PROJECT STARTING...");
@@ -73,7 +78,7 @@ pub async fn server() -> Result<()> {
         .route("/verify/status", get(check_status))
         .route("/signature", post(signature))
         .route("/create_item", post(create_item))
-        .route("/get_item", get(get_item))
+        .route("/get_item/{item_id}", get(get_item))
         .route("/get_owner", get(get_owner))
         .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi()))
         .with_state(state)

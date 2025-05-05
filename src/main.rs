@@ -6,7 +6,7 @@ mod signature;
 mod verify_ownership;
 mod certificate;
 mod qr_code;
-
+mod swagger_config;
 
 use server::*;
 
