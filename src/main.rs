@@ -7,6 +7,8 @@ mod verify_ownership;
 mod certificate;
 mod qr_code;
 mod swagger_config;
+mod app_router;
+mod app_state;
 
 use server::*;
 

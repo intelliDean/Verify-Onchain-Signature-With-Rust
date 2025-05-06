@@ -5,6 +5,7 @@ use ethers::types::transaction::eip712::{EIP712Domain, Eip712, Eip712Error};
 use ethers::utils::keccak256;
 use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
+use std::env;
 use ethers::utils::hex::ToHexExt;
 use utoipa::ToSchema;
 
@@ -44,14 +45,17 @@ impl Eip712 for Certificate {
     }
 
     fn domain(&self) -> Result<EIP712Domain, Self::Error> {
+
+        let chain_id = env::var("CHAIN_ID").unwrap().parse::<usize>().unwrap();
+
         Ok(EIP712Domain {
             name: Some("CertificateAuth".to_string()),
             version: Some("1".to_string()),
-            chain_id: Some(U256::from(84532).into()),
+            chain_id: Some(U256::from(chain_id)),
             verifying_contract: Some(
-                "0xC14CDcDb51EF45111dd2024AB1c003F49144928f"
+                env::var("AUTH_CHAIN_CONTRACT").unwrap()
                     .parse()
-                    .unwrap(),
+                    .map_err(|_| anyhow::anyhow!("Invalid contract address")).unwrap(),
             ),
             salt: None,
         })
@@ -202,6 +206,28 @@ impl From<auth_chain::Item> for Item {
             date: item.date.to_string(),
             owner: item.owner
                 .encode_hex_with_prefix(),
+        }
+    }
+}
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub(crate) struct RouterPath {
+   pub  verify: String,
+   pub verify_status: String,
+   pub signature: String,
+   pub create_item: String,
+   pub get_item: String,
+   pub get_owner: String,
+}
+
+impl RouterPath {
+    pub fn init() -> Self {
+        Self {
+            verify: "/verify".to_string(),
+            verify_status: "/verify/status".to_string(),
+            signature: "/signature".to_string(),
+            create_item: "/create_item".to_string(),
+            get_item: "/get_item/{item_id}".to_string(),
+            get_owner: "/get_owner".to_string(),
         }
     }
 }
